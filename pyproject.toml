@@ -10,6 +10,12 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["nonebot2>=2.4.0,<3"]
 
+[project.optional-dependencies]
+alconna = ["nonebot-plugin-alconna>=0.62.1,<0.63"]
+
+[project.entry-points."n-p-alc.uniseg.adapters"]
+seatalk = "nonebot.adapters.seatalk.integrations.alconna:Loader"
+
 [project.urls]
 Repository = "https://github.com/ilnli/nonebot-adapter-seatalk"
 
