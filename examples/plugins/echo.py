@@ -1,11 +1,10 @@
 from nonebot.params import CommandArg
-from nonebot.rule import to_me
 
 from nonebot import on_command
 from nonebot.adapters.seatalk import Bot, Message
 from nonebot.adapters.seatalk.event import MessageEvent
 
-echo = on_command("echo", rule=to_me(), block=True)
+echo = on_command("echo", block=True)
 
 
 @echo.handle()
