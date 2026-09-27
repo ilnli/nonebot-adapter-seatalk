@@ -1,7 +1,7 @@
 # NoneBot2 SeaTalk adapter design
 
 - Date: 2026-09-27
-- Status: Proposed; awaiting written-spec review
+- Status: Approved for implementation planning on 2026-09-27; implementation awaits plan review
 - Package: `nonebot-adapter-seatalk`
 - Import: `nonebot.adapters.seatalk`
 - Adapter name: `SeaTalk`
@@ -11,7 +11,7 @@
 
 Build a reusable NoneBot2 adapter that lets plugin authors receive SeaTalk bot events, run normal NoneBot commands, and reply to users and groups. The intended users are developers operating SeaTalk application bots. A successful first release supports a text command and reply in private chat, group chat, and a group thread, including recovery from a dropped event connection.
 
-The user requested an adapter informed by the supplied SDK, SeaTalk documentation, and existing NoneBot adapters, with preparation for `nonebot/plugin-alconna`. The user accepted the proposed WebSocket-first direction and requested this written spec. This document selects the remaining implementation choices for review; they are proposals, not completed work.
+The user requested an adapter informed by the supplied SDK, SeaTalk documentation, and existing NoneBot adapters, with preparation for `nonebot/plugin-alconna`. The user accepted the proposed WebSocket-first direction, reviewed this spec, and authorized implementation planning. This document describes the approved design, not completed implementation.
 
 Constraints:
 
