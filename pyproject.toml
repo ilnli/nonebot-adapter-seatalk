@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nonebot-adapter-seatalk"
+version = "0.1.0"
+description = "SeaTalk adapter for NoneBot2"
+requires-python = ">=3.10"
+dependencies = ["nonebot2>=2.4.0,<3"]
+
+[project.urls]
+Repository = "https://github.com/ilnli/nonebot-adapter-seatalk"
+
+[dependency-groups]
+dev = ["nonebug>=0.4.4,<0.5", "pytest>=8,<9", "pytest-asyncio>=0.24,<1", "ruff"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["nonebot"]
+
+[tool.hatch.build.targets.sdist]
+include = ["nonebot/", "tests/", "docs/", "examples/", "pyproject.toml", "README.md"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

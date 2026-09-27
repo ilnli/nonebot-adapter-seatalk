@@ -1,0 +1,22 @@
+{
+  "event_id": "event-group",
+  "event_type": "new_mentioned_message_received_from_group_chat",
+  "timestamp": 1,
+  "app_id": "app-a",
+  "event": {
+    "group_id": "group-a",
+    "message": {
+      "message_id": "msg-group",
+      "sender": {
+        "employee_code": "emp-a",
+        "seatalk_id": "user-a",
+        "sender_type": 1
+      },
+      "tag": "text",
+      "text": {
+        "plain_text": "/echo hello",
+        "mentioned_list": []
+      }
+    }
+  }
+}

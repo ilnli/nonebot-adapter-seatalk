@@ -1,0 +1,17 @@
+{
+  "event_id": "event-private",
+  "event_type": "message_from_bot_subscriber",
+  "timestamp": 1,
+  "app_id": "app-a",
+  "event": {
+    "employee_code": "emp-a",
+    "seatalk_id": "user-a",
+    "message": {
+      "message_id": "msg-private",
+      "tag": "text",
+      "text": {
+        "content": "/echo hello"
+      }
+    }
+  }
+}
