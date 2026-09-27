@@ -7,6 +7,8 @@ name = "nonebot-adapter-seatalk"
 version = "0.1.0"
 description = "SeaTalk adapter for NoneBot2"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = ["nonebot2>=2.4.0,<3"]
 
@@ -26,7 +28,7 @@ dev = ["nonebug>=0.4.4,<0.5", "pytest>=8,<9", "pytest-asyncio>=0.24,<1", "ruff"]
 packages = ["nonebot"]
 
 [tool.hatch.build.targets.sdist]
-include = ["nonebot/", "tests/", "docs/", "examples/", "pyproject.toml", "README.md"]
+include = ["nonebot/", "tests/", "docs/", "examples/", "pyproject.toml", "README.md", "LICENSE"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

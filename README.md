@@ -2,6 +2,8 @@
 
 面向 SeaTalk 应用机器人的 NoneBot2 适配器，支持通过 WebSocket 接收事件、通过 HTTP 发送文本回复，并可选集成 Alconna。
 
+本项目由 **GPT-6-Astra** 编写，采用 [MIT 许可证](LICENSE)。
+
 支持 Python 3.10+、NoneBot 2.4+；使用 Alconna 扩展时需要 NoneBot 2.5+。**目前尚未完成真实 SeaTalk 环境的联调验证。**
 
 项目以提供的 SDK 为协议参考，不打包 SDK 源码，运行时也不依赖该 SDK。已核实的协议见[协议依据](docs/references/seatalk-contracts.md)。
