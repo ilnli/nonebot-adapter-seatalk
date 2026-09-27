@@ -1,0 +1,33 @@
+name: Test
+on: [push, pull_request]
+jobs:
+  wheel:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - python: '3.10'
+            pins: 'nonebot2==2.4.0 pydantic>=1.10,<2'
+          - python: '3.14'
+            pins: 'nonebot2==2.5.0 pydantic>=2,<3'
+          - python: '3.12'
+            pins: 'nonebot2==2.5.0 pydantic>=2,<3 nonebot-plugin-alconna==0.62.1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --group dev
+      - run: uv run ruff check nonebot tests examples
+      - run: uv run ruff format --check nonebot tests examples
+      - run: uv build
+      - name: Test installed wheel outside source tree
+        env:
+          LANE_PINS: ${{ matrix.pins }}
+          SEATALK_TEST_INSTALLED: '1'
+        run: |
+          uv venv "$RUNNER_TEMP/wheel-env"
+          uv pip install --python "$RUNNER_TEMP/wheel-env/bin/python" dist/*.whl $LANE_PINS 'pytest>=8,<9' 'pytest-asyncio>=0.24,<1' 'nonebug>=0.4.4,<0.5'
+          export SEATALK_TEST_WHEEL="$GITHUB_WORKSPACE/dist/nonebot_adapter_seatalk-0.1.0-py3-none-any.whl"
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/wheel-env/bin/python" -m pytest "$GITHUB_WORKSPACE/tests" -q

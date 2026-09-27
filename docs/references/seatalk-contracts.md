@@ -28,3 +28,7 @@ Official articles were read using user-authorized documentation access; credenti
 Public REST examples use `https://openapi.seatalk.io`. Pairing credentials for that origin with the SDK's haiserve socket endpoint remains a deployment verification item; api_base is explicitly configured. No live sends or production redelivery experiments have been performed.
 
 Fixtures use invented IDs and dummy secrets. HTTP error fixtures model the documented code envelope; optional headers in tests are synthetic robustness cases, not asserted platform guarantees.
+
+## Automated verification
+
+Installed-wheel checks completed on 2026-09-27: 98 tests passed on Python3.10/NoneBot2.4/Pydantic1 and Python3.14/NoneBot2.5/Pydantic2 (Alconna absent). The optional Python3.12/NoneBot2.5/Alconna0.62.1 lane passed all117 tests. The Python3.14 test runner emitted five pytest-asyncio deprecation warnings. Lint, formatting and wheel/sdist builds passed. No live SeaTalk send or reconnect was exercised.
