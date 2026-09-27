@@ -1,7 +1,10 @@
 import asyncio
 import json
+from contextlib import asynccontextmanager
 
-from nonebot.drivers import Request, WebSocket
+from nonebot.config import Config, Env
+from nonebot.drivers import HTTPClientMixin, Request, WebSocket, WebSocketClientMixin
+from nonebot.drivers.none import Driver
 from nonebot.exception import WebSocketClosed
 
 
@@ -70,3 +73,42 @@ class FakeWebSocket(WebSocket):
                 await self.changed.wait()
 
         return await asyncio.wait_for(wait(), 1)
+
+
+class FakeDriver(Driver, HTTPClientMixin, WebSocketClientMixin):
+    def __init__(self, bots):
+        super().__init__(Env(), Config(_env_file=None, seatalk_bots=bots, nickname={"bot"}))
+        self.peers = asyncio.Queue()
+        self.connections = []
+        self.notifications = []
+        self.http_requests = []
+
+    @asynccontextmanager
+    async def websocket(self, setup):
+        self.connections.append(setup)
+        peer = await self.peers.get()
+        if isinstance(peer, Exception):
+            raise peer
+        try:
+            yield peer
+        finally:
+            await peer.close()
+
+    async def request(self, setup):
+        self.http_requests.append(setup)
+        raise AssertionError("Unexpected HTTP request")
+
+    async def stream_request(self, setup, *, chunk_size=1024):
+        raise AssertionError("Unexpected streaming request")
+        yield
+
+    def get_session(self, *args, **kwargs):
+        raise AssertionError("Unexpected HTTP session")
+
+    def _bot_connect(self, bot):
+        super()._bot_connect(bot)
+        self.notifications.append(("connected", bot.self_id))
+
+    def _bot_disconnect(self, bot):
+        super()._bot_disconnect(bot)
+        self.notifications.append(("disconnected", bot.self_id))
