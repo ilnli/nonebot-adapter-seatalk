@@ -78,7 +78,14 @@ async def test_ignore_only_configured_self_sender(bot, case, monkeypatch):
 
 
 @pytest.mark.parametrize("fixture", ["private", "group_mentioned", "thread"])
-async def test_command_matches_normalized_event(app, bot, case, fixture):
+async def test_command_matches_normalized_event(app, bot, case, fixture, monkeypatch):
+    from fakes import FakeHTTP
+    from test_api import response
+
+    http = FakeHTTP(
+        response(case("http/token")["response"]), response({"code": 0, "message_id": "sent-a"})
+    )
+    monkeypatch.setattr(bot.adapter, "request", http.request)
     event = parse_event(case(f"events/{fixture}"), app_id="app-a")
     event.to_me = True
     matcher = on_command("echo", rule=to_me(), block=True)
@@ -86,12 +93,16 @@ async def test_command_matches_normalized_event(app, bot, case, fixture):
 
     @matcher.handle()
     async def handle():
+        result = await bot.send(event, "hello")
+        assert result.message_id == "sent-a"
         calls.append("called")
 
     async with app.test_matcher(matcher) as ctx:
         ctx.receive_event(bot, event)
         ctx.should_pass_rule()
     assert calls == ["called"]
+    assert http.requests[-1].json["message"]["text"]["content"] == "hello"
+    assert http.requests[-1].json["message"].get("thread_id") == event.thread_id
 
 
 async def test_quoted_command_matches_after_preprocessing(app, bot, case, monkeypatch):
@@ -117,3 +128,60 @@ async def test_quoted_command_matches_after_preprocessing(app, bot, case, monkey
     assert calls == ["called"]
     assert event.quoted_message_id == "quoted-message"
     assert event.original_message[0].type == "reply"
+
+
+@pytest.mark.parametrize(
+    "fixture,kind,identity,thread",
+    [
+        ("private", "single_chat", "employee-a", None),
+        ("group_mentioned", "group_chat", "group-a", None),
+        ("thread", "group_chat", "group-a", "root-a"),
+    ],
+)
+async def test_send_routes_event(bot, case, monkeypatch, fixture, kind, identity, thread):
+    from fakes import FakeHTTP
+    from test_api import response
+
+    event = parse_event(case("events/" + fixture), app_id="app-a")
+    event.employee_code = "employee-a"
+    event.group_id = "group-a" if kind == "group_chat" else None
+    event.thread_id = thread
+    http = FakeHTTP(
+        response(case("http/token")["response"]), response({"code": 0, "message_id": "sent-a"})
+    )
+    monkeypatch.setattr(bot.adapter, "request", http.request)
+    result = await bot.send(event, "hello")
+    assert http.requests[-1].url.path == "/messaging/v2/" + kind
+    assert http.requests[-1].json["message"].get("thread_id") == thread
+    assert http.requests[-1].json["message"].get("quoted_message_id") is None
+    assert identity in http.requests[-1].json.values()
+    assert result.message_id == "sent-a"
+
+
+async def test_missing_destination_and_overrides_do_not_send(bot, case):
+    from nonebot.adapters.seatalk.exception import InvalidEvent
+
+    event = parse_event(case("events/private"), app_id="app-a")
+    event.employee_code = None
+    with pytest.raises(InvalidEvent):
+        await bot.send(event, "hello")
+    event.employee_code = "employee-a"
+    with pytest.raises(TypeError):
+        await bot.send(event, "hello", group_id="elsewhere")
+
+
+async def test_quote_opt_in_and_api_dispatch(bot, case, monkeypatch):
+    from fakes import FakeHTTP
+    from test_api import response
+
+    from nonebot.adapters.seatalk.exception import ApiNotAvailable
+
+    event = parse_event(case("events/thread"), app_id="app-a")
+    http = FakeHTTP(
+        response(case("http/token")["response"]), response({"code": 0, "message_id": "sent-a"})
+    )
+    monkeypatch.setattr(bot.adapter, "request", http.request)
+    await bot.send(event, "hello", quote_id="quote-a")
+    assert http.requests[-1].json["message"]["quoted_message_id"] == "quote-a"
+    with pytest.raises(ApiNotAvailable):
+        await bot.call_api("_access_token")

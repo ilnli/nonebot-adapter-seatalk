@@ -10,10 +10,13 @@ from nonebot.utils import escape_tag, logger_wrapper
 
 from nonebot.adapters import Adapter as BaseAdapter
 
+from .api import APIClient
 from .bot import Bot
 from .config import Config
 from .event import Event, parse_event
 from .exception import ApiNotAvailable, EventCapacityExceeded, InvalidEvent
+from .message import Message
+from .models import Destination
 from .transport import RegistrationRejected, SessionKicked, WebSocketSession
 
 log = logger_wrapper("SeaTalk")
@@ -39,6 +42,7 @@ class Adapter(BaseAdapter):
         if not isinstance(driver, WebSocketClientMixin) or not isinstance(driver, HTTPClientMixin):
             raise RuntimeError("SeaTalk requires WebSocketClientMixin and HTTPClientMixin drivers")
         self.seatalk_config = type_validate_python(Config, model_dump(self.config))
+        self._clients: dict[str, APIClient] = {}
         self._states: dict[str, _BotState] = {}
         self._supervisors: set[asyncio.Task[None]] = set()
         self._stopping = False
@@ -166,4 +170,19 @@ class Adapter(BaseAdapter):
             await asyncio.gather(*remaining, return_exceptions=True)
 
     async def _call_api(self, bot: Bot, api: str, **data: Any) -> Any:
-        raise ApiNotAvailable(f"SeaTalk API {api} is not available")
+        if api not in {"request_api", "send_private_message", "send_group_message"}:
+            raise ApiNotAvailable(f"SeaTalk API {api} is not available")
+        if bot.self_id not in self._clients:
+            self._clients[bot.self_id] = APIClient(
+                bot.bot_config, self.request, timeout=self.config.api_timeout
+            )
+        client = self._clients[bot.self_id]
+        if api == "request_api":
+            return await client.request_api(**data)
+        recipient = "group_id" if api == "send_group_message" else "employee_code"
+        destination = Destination(
+            "group" if recipient == "group_id" else "private",
+            data.pop(recipient),
+            data.pop("thread_id", None),
+        )
+        return await client.send_message(destination, Message(data.pop("message")), **data)

@@ -7,9 +7,9 @@ from nonebot.adapters import Bot as BaseBot
 
 from .config import BotConfig
 from .event import Event, MessageEvent
-from .exception import ApiNotAvailable
+from .exception import InvalidEvent
 from .message import Message, MessageSegment
-from .models import SendResult
+from .models import Destination, SendResult
 
 if TYPE_CHECKING:
     from .adapter import Adapter
@@ -72,4 +72,67 @@ class Bot(BaseBot):
     async def send(
         self, event: Event, message: str | Message | MessageSegment, **kwargs: Any
     ) -> SendResult:
-        raise ApiNotAvailable("HTTP sending awaits verified SeaTalk API contracts")
+        if kwargs.keys() - {"quote_id"}:
+            raise TypeError(
+                "send accepts only quote_id; use an explicit send method for other targets"
+            )
+        destination = resolve_destination(event)
+        if destination.kind == "group":
+            return await self.send_group_message(
+                destination.id, message, thread_id=destination.thread_id, **kwargs
+            )
+        return await self.send_private_message(
+            destination.id, message, thread_id=destination.thread_id, **kwargs
+        )
+
+    async def send_private_message(
+        self,
+        employee_code: str,
+        message: str | Message | MessageSegment,
+        *,
+        thread_id: str | None = None,
+        quote_id: str | None = None,
+    ) -> SendResult:
+        return await self.call_api(
+            "send_private_message",
+            employee_code=employee_code,
+            message=Message(message),
+            thread_id=thread_id,
+            quote_id=quote_id,
+        )
+
+    async def send_group_message(
+        self,
+        group_id: str,
+        message: str | Message | MessageSegment,
+        *,
+        thread_id: str | None = None,
+        quote_id: str | None = None,
+    ) -> SendResult:
+        return await self.call_api(
+            "send_group_message",
+            group_id=group_id,
+            message=Message(message),
+            thread_id=thread_id,
+            quote_id=quote_id,
+        )
+
+    async def request_api(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return await self.call_api(
+            "request_api", method=method, path=path, params=params, json=json
+        )
+
+
+def resolve_destination(event: Event) -> Destination:
+    if event.group_id:
+        return Destination("group", event.group_id, event.thread_id)
+    if event.employee_code:
+        return Destination("private", event.employee_code, event.thread_id)
+    raise InvalidEvent("event has no group ID or private employee code")

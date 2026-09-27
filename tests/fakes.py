@@ -112,3 +112,17 @@ class FakeDriver(Driver, HTTPClientMixin, WebSocketClientMixin):
     def _bot_disconnect(self, bot):
         super()._bot_disconnect(bot)
         self.notifications.append(("disconnected", bot.self_id))
+
+
+class FakeHTTP:
+    def __init__(self, *responses):
+        self.responses = list(responses)
+        self.requests = []
+
+    async def request(self, request):
+        self.requests.append(request)
+        assert self.responses, "unexpected HTTP request"
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
