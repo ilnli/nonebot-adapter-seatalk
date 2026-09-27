@@ -35,6 +35,15 @@
 
 ---
 
+## Execution status — 2026-09-27
+
+- Task 1: SDK evidence recorded; HTTP/mention-offset documentation still inaccessible.
+- Task 2: message/configuration model implemented; verified Unicode mention slicing remains blocked.
+- Tasks 3–5: implemented, tested, and independently reviewed; four review regressions fixed.
+- Tasks 6–7: pending verified HTTP contracts; sending and Alconna are not implemented.
+- Task 8: receiving-core wheel, examples, and clean-install checks completed; final release/CI/Alconna acceptance remain pending.
+- Installed-wheel checks: 65 passed on Python 3.10 / NoneBot 2.4.0 / Pydantic 1.10 and Python 3.14 / NoneBot 2.5.0 / Pydantic 2. No live SeaTalk verification.
+
 ## Execution context and dependency decisions
 
 The repository currently contains only the committed design and an untracked `seatalk-oapi/` reference directory. There is no Python project or installed NoneBot environment yet. Initialize an isolated worktree at execution time using the worktree skill; the original SDK remains readable at `/root/projects/nonebot-adapter-seatalk/seatalk-oapi/` even if absent from that worktree. Do not copy it into Git merely to make a worktree self-contained.
@@ -138,7 +147,7 @@ Also assert duplicate app IDs are rejected, `api_base` is required and HTTPS, th
 
 Classes: `Event`, `MessageEvent`, `PrivateMessageEvent`, `GroupMessageEvent`, `ThreadMessageEvent`, `NoticeEvent`, `InteractiveMessageClickEvent`, `ChatEntryNoticeEvent`, `BotAddedNoticeEvent`, `BotRemovedNoticeEvent`, `GroupConvertedNoticeEvent`, `MessageEditedNoticeEvent`, `MessageRecalledNoticeEvent`, `GroupMembersChangedNoticeEvent`, `GroupRemovedNoticeEvent`. Unknown events use `NoticeEvent` preserving the platform name.
 
-- [ ] **Step 1: Write failing event tests.** Use `json.loads` on session IDs to avoid prescribing whitespace; fixtures use app `app-a`, employee `emp-a`, group `group-a`, thread `thread-a`:
+- [x] **Step 1: Write failing event tests.** Use `json.loads` on session IDs to avoid prescribing whitespace; fixtures use app `app-a`, employee `emp-a`, group `group-a`, thread `thread-a`:
 
 ```python
 def test_thread_session_isolates_sender_and_conversation(case):
@@ -157,10 +166,10 @@ def test_private_event_keeps_original_message(case):
 
 Parametrize SDK notice/mutation tags to assert `get_type() == "notice"`; unknown event/body fields remain in `raw_event`. Assert the fallback actor is `seatalk:<id>`, missing actors raise `ValueError`, and event descriptions contain IDs/types but not message content.
 
-- [ ] **Step 2: Verify red.** `uv run pytest tests/test_event.py -q` fails on absent event classes/parser.
-- [ ] **Step 3: Implement the event interfaces.** Use a straightforward event-name/tag dispatch table. Keep platform IDs as strings. Implement NoneBot's abstract methods; non-message `get_message()` raises `ValueError`. Session encoding follows spec section 8 exactly. Classify mutation tags before normal message construction. No contact lookups.
-- [ ] **Step 4: Verify green.** `uv run pytest tests/test_event.py tests/test_message.py -q` passes.
-- [ ] **Step 5: Commit.** Stage the event module/tests/fixtures, then `git commit -m "feat: map SeaTalk events to NoneBot conversations"`.
+- [x] **Step 2: Verify red.** `uv run pytest tests/test_event.py -q` fails on absent event classes/parser.
+- [x] **Step 3: Implement the event interfaces.** Use a straightforward event-name/tag dispatch table. Keep platform IDs as strings. Implement NoneBot's abstract methods; non-message `get_message()` raises `ValueError`. Session encoding follows spec section 8 exactly. Classify mutation tags before normal message construction. No contact lookups.
+- [x] **Step 4: Verify green.** `uv run pytest tests/test_event.py tests/test_message.py -q` passes.
+- [x] **Step 5: Commit.** Stage the event module/tests/fixtures, then `git commit -m "feat: map SeaTalk events to NoneBot conversations"`.
 
 ## Task 4: Implement a registered async WebSocket session
 
@@ -170,7 +179,7 @@ Parametrize SDK notice/mutation tags to assert `get_type() == "notice"`; unknown
 
 Test double `FakeWebSocket` implements the driver's abstract WebSocket methods, with `push(envelope: dict[str, Any]) -> None`, `sent: list[dict[str, Any]]`, `closed: bool`, async `wait_sent(command: str) -> dict[str, Any]`, and one-shot `fail_next_send: Exception | None`. It uses asyncio queues/events, no real network or long sleeps.
 
-- [ ] **Step 1: Write failing session tests.** Construct the peer/session in test fixtures. The successful registration uses token `ws-token`, interval 15, timeout 30:
+- [x] **Step 1: Write failing session tests.** Construct the peer/session in test fixtures. The successful registration uses token `ws-token`, interval 15, timeout 30:
 
 ```python
 async def test_register_then_ack(session, peer):
@@ -186,10 +195,10 @@ async def test_register_then_ack(session, peer):
 
 Add tests for default 15-second interval/30-second pong timeout, a registration deadline of 15 seconds, empty tokens/conflicting app IDs, terminal rejection/kick, and a missed pong deadline unaffected by later pings. Patch the module timing boundary or inject elapsed time in the test; do not spend real seconds per case. Simultaneous ping/ack writes must serialize. A malformed JSON frame logs a safe parsing error and does not hide a subsequent valid event.
 
-- [ ] **Step 2: Verify red.** `uv run pytest tests/test_transport.py -q` fails on absent session implementation.
-- [ ] **Step 3: Implement the session interfaces.** Use SDK envelope field names and UUID request IDs. Await registration with `asyncio.wait_for` for Python 3.10 compatibility. After registration run receive and heartbeat concurrently; close/cancel the sibling task on failure, and propagate cancellation. Clear credentials on close. Handle malformed known frames without crashing a healthy receive loop; ignore/log unknown commands without treating them as events. No reconnect loop here.
-- [ ] **Step 4: Verify green.** `uv run pytest tests/test_transport.py -q` passes with no unfinished task warnings.
-- [ ] **Step 5: Commit.** Stage transport/fakes/tests, then `git commit -m "feat: implement SeaTalk async WebSocket protocol"`.
+- [x] **Step 2: Verify red.** `uv run pytest tests/test_transport.py -q` fails on absent session implementation.
+- [x] **Step 3: Implement the session interfaces.** Use SDK envelope field names and UUID request IDs. Await registration with `asyncio.wait_for` for Python 3.10 compatibility. After registration run receive and heartbeat concurrently; close/cancel the sibling task on failure, and propagate cancellation. Clear credentials on close. Handle malformed known frames without crashing a healthy receive loop; ignore/log unknown commands without treating them as events. No reconnect loop here.
+- [x] **Step 4: Verify green.** `uv run pytest tests/test_transport.py -q` passes with no unfinished task warnings.
+- [x] **Step 5: Commit.** Stage transport/fakes/tests, then `git commit -m "feat: implement SeaTalk async WebSocket protocol"`.
 
 ## Task 5: Connect bots, admit events, and dispatch commands
 
@@ -199,7 +208,7 @@ Add tests for default 15-second interval/30-second pong timeout, a registration 
 
 Extend test doubles with a driver offering both client mixins and queued `FakeWebSocket` sessions. The fixture `running_adapter` owns startup/shutdown; expose sent frames, handler calls, and connection/disconnection notifications. Use a gated handler (`asyncio.Event`) to keep admissions pending without slow sleeps.
 
-- [ ] **Step 1: Write failing admission and lifecycle tests.** Test helper fixtures define `deliver(event_id, callback_id, *, app_id="app-a")`, `handler_calls`, and `acks` using the fake peer, with these central assertions:
+- [x] **Step 1: Write failing admission and lifecycle tests.** Test helper fixtures define `deliver(event_id, callback_id, *, app_id="app-a")`, `handler_calls`, and `acks` using the fake peer, with these central assertions:
 
 ```python
 async def test_duplicate_uses_new_callback_without_second_dispatch(deliver, handler_calls, acks):
@@ -216,12 +225,12 @@ async def test_cross_app_payload_is_not_admitted(deliver, handler_calls, acks):
 
 Exercise 128 pending admissions then a rejected 129th, a duplicate admitted at capacity, pending-key retention, completed-cache eviction at 4,096 and expiry after 600 seconds, and ack failure/redelivery without a second dispatch. Include the callback-ID fallback and missing-both-ID case. Assert malformed known events are unacknowledged and unknown valid events are admitted. For two bots, identical event IDs do not share state.
 
-- [ ] **Step 2: Verify red.** `uv run pytest tests/test_adapter.py -q` fails on missing lifecycle/admission implementation.
-- [ ] **Step 3: Implement lifecycle and admission.** Register driver startup/shutdown hooks, validate mixins without requiring ASGI, and create a supervisor per bot. Keep pending/completed state for the configured bot across socket replacements. Check and record keys before yielding; schedule tracked `Bot.handle_event` tasks and then ack. Use the spec's limits/backoff/shutdown values. Make `bot_connect`/`bot_disconnect` synchronous calls, matching NoneBot. Observe exceptions and let cancellation terminate reconnect sleeps.
-- [ ] **Step 4: Write command preprocessing tests.** Assert a leading verified self-mention/nickname is removed only from `message`, `original_message` stays intact, another user's mention remains, and an unidentifiable mention is not removed. Self messages are ignored only with a matching configured SeaTalk ID. With NoneBug, run `on_command("echo")` and `to_me()` against private/group/thread events and verify handler invocation. Test startup makes no HTTP call; disconnected sessions balance notifications; rejection/kick stops reconnecting; shutdown interrupts backoff and drains/cancels handlers within the 10-second policy.
-- [ ] **Step 5: Verify the added tests fail, then implement `Bot.handle_event`.** Run `uv run pytest tests/test_bot.py -q`, observe the expected failures, then preprocess and call `nonebot.message.handle_event`. Keep notice dispatch separate from text preprocessing.
-- [ ] **Step 6: Verify green.** `uv run pytest tests/test_adapter.py tests/test_bot.py tests/test_transport.py -q` passes, with no leaked tasks and no secrets in captured adapter logs.
-- [ ] **Step 7: Commit.** Stage this task's listed files, then `git commit -m "feat: dispatch SeaTalk events with bounded admission"`.
+- [x] **Step 2: Verify red.** `uv run pytest tests/test_adapter.py -q` fails on missing lifecycle/admission implementation.
+- [x] **Step 3: Implement lifecycle and admission.** Register driver startup/shutdown hooks, validate mixins without requiring ASGI, and create a supervisor per bot. Keep pending/completed state for the configured bot across socket replacements. Check and record keys before yielding; schedule tracked `Bot.handle_event` tasks and then ack. Use the spec's limits/backoff/shutdown values. Make `bot_connect`/`bot_disconnect` synchronous calls, matching NoneBot. Observe exceptions and let cancellation terminate reconnect sleeps.
+- [x] **Step 4: Write command preprocessing tests.** Assert a leading verified self-mention/nickname is removed only from `message`, `original_message` stays intact, another user's mention remains, and an unidentifiable mention is not removed. Self messages are ignored only with a matching configured SeaTalk ID. With NoneBug, run `on_command("echo")` and `to_me()` against private/group/thread events and verify handler invocation. Test startup makes no HTTP call; disconnected sessions balance notifications; rejection/kick stops reconnecting; shutdown interrupts backoff and drains/cancels handlers within the 10-second policy.
+- [x] **Step 5: Verify the added tests fail, then implement `Bot.handle_event`.** Run `uv run pytest tests/test_bot.py -q`, observe the expected failures, then preprocess and call `nonebot.message.handle_event`. Keep notice dispatch separate from text preprocessing.
+- [x] **Step 6: Verify green.** `uv run pytest tests/test_adapter.py tests/test_bot.py tests/test_transport.py -q` passes, with no leaked tasks and no secrets in captured adapter logs.
+- [x] **Step 7: Commit.** Stage this task's listed files, then `git commit -m "feat: dispatch SeaTalk events with bounded admission"`.
 
 ## Task 6: Add authenticated HTTP requests and text replies
 

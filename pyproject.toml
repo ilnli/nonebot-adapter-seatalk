@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "nonebot-adapter-seatalk"
 version = "0.1.0"
 description = "SeaTalk adapter for NoneBot2"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["nonebot2>=2.4.0,<3"]
 
