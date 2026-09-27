@@ -1,0 +1,19 @@
+{
+  "method": "POST",
+  "path": "/messaging/v2/group_chat",
+  "request": {
+    "group_id": "group-a",
+    "message": {
+      "tag": "text",
+      "text": {
+        "format": 2,
+        "content": "hello"
+      }
+    }
+  },
+  "status": 200,
+  "response": {
+    "code": 101
+  },
+  "source": "https://open.seatalk.io/docs/reference_server-api-error-code_"
+}

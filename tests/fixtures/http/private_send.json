@@ -1,0 +1,19 @@
+{
+  "method": "POST",
+  "path": "/messaging/v2/single_chat",
+  "request": {
+    "employee_code": "employee-a",
+    "message": {
+      "tag": "text",
+      "text": {
+        "format": 2,
+        "content": "hello"
+      }
+    }
+  },
+  "status": 200,
+  "response": {
+    "code": 0
+  },
+  "source": "https://open.seatalk.io/docs/messaging_send-message-to-bot-user_"
+}

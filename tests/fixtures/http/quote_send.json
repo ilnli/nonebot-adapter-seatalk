@@ -1,0 +1,21 @@
+{
+  "method": "POST",
+  "path": "/messaging/v2/group_chat",
+  "request": {
+    "group_id": "group-a",
+    "message": {
+      "tag": "text",
+      "text": {
+        "format": 2,
+        "content": "hello"
+      },
+      "quoted_message_id": "quote-a"
+    }
+  },
+  "status": 200,
+  "response": {
+    "code": 0,
+    "message_id": "sent-a"
+  },
+  "source": "https://open.seatalk.io/docs/Send-Message-to-Group-Chat"
+}

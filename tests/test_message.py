@@ -79,3 +79,32 @@ def test_config_defaults_and_redacts_secret():
 def test_config_rejects_missing_identity_or_invalid_api_base(data):
     with pytest.raises(ValueError):
         type_validate_python(BotConfig, data)
+
+
+def test_unicode_mentions_follow_documented_mapping(case):
+    payload = case("events/unicode_mentions")["event"]["message"]
+    message = parse_message(payload, group=True)
+    assert [s.type for s in message] == ["text", "at", "text"]
+    assert message[0].data["text"] == "😀你好 "
+    assert message[1].data["user_id"] == "12345"
+    assert message[1].data["id_type"] == "seatalk_id"
+    assert message[2].data["text"] == " hello"
+
+
+@pytest.mark.parametrize(
+    "text,actors",
+    [
+        ("@Same @Same", [{"username": "Same", "seatalk_id": "1"}]),
+        (
+            "@Same",
+            [{"username": "Same", "seatalk_id": "1"}, {"username": "Same", "seatalk_id": "2"}],
+        ),
+        ("@A B", [{"username": "A", "seatalk_id": "1"}, {"username": "A B", "seatalk_id": "2"}]),
+    ],
+)
+def test_ambiguous_mappings_preserve_text(text, actors):
+    message = parse_message(
+        {"tag": "text", "text": {"plain_text": text, "mentioned_list": actors}}, group=True
+    )
+    assert message.extract_plain_text() == text
+    assert message[0].data["mentions"] == actors

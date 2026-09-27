@@ -1,6 +1,6 @@
 # SeaTalk contract evidence
 
-Recorded 2026-09-27. Status: WebSocket schema verified against the supplied SDK; HTTP and mention-offset contracts awaiting primary evidence.
+Recorded 2026-09-27. Status: WebSocket schema verified against the supplied SDK; authenticated official HTTP and event documentation read on the same date.
 
 ## WebSocket
 
@@ -12,13 +12,19 @@ Private events put sender fields and `message` in `event`. Group and thread even
 
 The event fixtures are independently authored examples with invented IDs based on those schemas. They contain no real user content or credentials.
 
-## Evidence still required
+## HTTP and messages
 
-- Official token endpoint, request/response, expiry units, and failure codes.
-- Private/group/thread send requests, recipient identity, quoting rules, text/mention format, size limits, and returned message IDs.
-- Mention span offset units and the representation of the bot's own mention.
-- HTTP base URL and credential environment paired with the supplied WebSocket endpoint.
+Official articles were read using user-authorized documentation access; credentials and downloaded article bodies are not distributed.
 
-The public documentation page rendered a landing page through retrieval tools; its article endpoint returned HTTP 401. Secondary summaries are not used as implementation contracts. No HTTP fixtures or sending implementation may be considered verified until primary evidence is supplied or retrieved.
+- [Authentication](https://open.seatalk.io/docs/get-app-access-token): POST `/auth/app_access_token` with app_id/app_secret. Success has code=0, app_access_token and expire (Unix timestamp in seconds), normally valid for 7200 seconds. REST uses `Authorization: Bearer <app_access_token>`; this is independent of the WebSocket session token.
+- [Private sending](https://open.seatalk.io/docs/messaging_send-message-to-bot-user_): POST `/messaging/v2/single_chat`, recipient employee_code. Message contains tag=text and text={format:2,content:...}. Text is 1–4096 characters. Optional message.thread_id supports private threads. Text success example is only `{code:0}`: no fabricated message ID. Private quoting is not documented, so the convenience API rejects it.
+- [Group sending](https://open.seatalk.io/docs/Send-Message-to-Group-Chat): POST `/messaging/v2/group_chat`, recipient group_id; same text body. Optional message.thread_id and message.quoted_message_id are distinct. A thread ID can identify the root message to start a thread. Root/quoted messages must be within seven days. Group success includes message_id.
+- [Formatting](https://open.seatalk.io/docs/format-a-message): format=1 enables Markdown and group mention tags `<mention-tag target="seatalk://user?id=123"/>`. Only SeaTalk-ID user mentions are exported; employee codes are not mention IDs. Ordinary text uses format=2; text accompanying mentions is Markdown escaped. Mention-all and private mentions are outside the initial convenience API.
+- [Errors](https://open.seatalk.io/docs/reference_server-api-error-code_): HTTP 200 can contain a nonzero code. Code 100 means invalid/expired token; 101 rate limit; 102 invalid input; 103 permission denied; 1000 invalid app secret. Invalidate a rejected token without replaying the send. Group limit is 100/minute and 20/second, private 300/minute and 20/second per app. No built-in retries. Retry-After/request identifiers are exposed if present; the docs do not promise these headers.
+- [Incoming messages](https://open.seatalk.io/docs/Introduction-to-Received-Message-Types) and [group mentions](https://open.seatalk.io/docs/event_new_mentioned_message_from_group_chat): mentions render as `@` plus username, mapped to SeaTalk ID by mentioned_list. These official tables do **not** specify location/length or their units, although the supplied SDK has optional fields. Conversion therefore locates only unique, nonoverlapping literal username mappings; ambiguous/missing names preserve the full text and metadata. No offset unit is assumed. Media content is a URL requiring an API token, expiring after seven days; the adapter preserves it without downloading.
+- [SeaTalk IDs](https://open.seatalk.io/docs/SeaTalk-ID): a bot's SeaTalk ID is on the portal's App → Bot page; it is distinct from app_id and employee_code.
+- [WebSocket setup](https://open.seatalk.io/docs/WebSocket-Event-Callback): connect first, then select WebSocket under Event Callback and re-verify while connected.
 
-Live verification: not performed.
+Public REST examples use `https://openapi.seatalk.io`. Pairing credentials for that origin with the SDK's haiserve socket endpoint remains a deployment verification item; api_base is explicitly configured. No live sends or production redelivery experiments have been performed.
+
+Fixtures use invented IDs and dummy secrets. HTTP error fixtures model the documented code envelope; optional headers in tests are synthetic robustness cases, not asserted platform guarantees.

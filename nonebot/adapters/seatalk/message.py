@@ -85,8 +85,12 @@ def parse_message(payload: dict[str, Any], *, group: bool) -> Message:
             raise InvalidEvent(f"message.text.{field} must be a string")
         segment = MessageSegment.text(body[field])
         if group and body.get("mentioned_list"):
-            # Keep offsets untouched until the platform's offset unit is verified.
-            segment.data["mentions"] = deepcopy(body["mentioned_list"])
+            mentions = body["mentioned_list"]
+            converted = _mapped_mentions(body[field], mentions)
+            if converted is not None:
+                message.extend(converted)
+                return message
+            segment.data["mentions"] = deepcopy(mentions)
     elif tag in {
         "image",
         "file",
@@ -106,3 +110,36 @@ def parse_message(payload: dict[str, Any], *, group: bool) -> Message:
         segment = MessageSegment.raw(tag, payload)
     message.append(segment)
     return message
+
+
+def _mapped_mentions(text: str, mentions: Any) -> Message | None:
+    # The official contract maps names, not offsets. Only unique literal spans
+    # can be resolved without guessing UTF-8/UTF-16 units or which occurrence.
+    if not isinstance(mentions, list):
+        return None
+    spans = []
+    for actor in mentions:
+        if not isinstance(actor, dict):
+            return None
+        name, identity = actor.get("username"), actor.get("seatalk_id")
+        if not isinstance(name, str) or not name or not isinstance(identity, str) or not identity:
+            return None
+        literal = "@" + name
+        if text.count(literal) != 1:
+            return None
+        start = text.index(literal)
+        spans.append((start, start + len(literal), identity, name, actor))
+    spans.sort(key=lambda span: span[0])
+    result, end = Message(), 0
+    for start, stop, identity, name, actor in spans:
+        if start < end:
+            return None
+        if start > end:
+            result.append(MessageSegment.text(text[end:start]))
+        segment = MessageSegment.at(identity, id_type="seatalk_id", display=name)
+        segment.data["mention"] = deepcopy(actor)
+        result.append(segment)
+        end = stop
+    if end < len(text):
+        result.append(MessageSegment.text(text[end:]))
+    return result
