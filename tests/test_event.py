@@ -83,3 +83,25 @@ def test_invalid_known_events_are_rejected(case, mutation):
         payload["timestamp"] = "not-a-time"
     with pytest.raises(InvalidEvent):
         parse_event(payload, app_id="app-a")
+
+
+def test_thread_requires_thread_id(case):
+    payload = case("events/thread")
+    payload["event"]["message"].pop("thread_id")
+    with pytest.raises(InvalidEvent, match="thread_id"):
+        parse_event(payload, app_id="app-a")
+
+
+def test_group_conversion_uses_operator_identity():
+    payload = {
+        "event_type": "group_chat_converted_to_external_group",
+        "event_id": "conversion",
+        "timestamp": 1,
+        "event": {
+            "group_id": "group-a",
+            "operator": {"employee_code": "operator-a", "seatalk_id": "seatalk-a"},
+        },
+    }
+    event = parse_event(payload, app_id="app-a")
+    assert event.get_user_id() == "operator-a"
+    assert json.loads(event.get_session_id()) == ["app-a", "group", "group-a", "", "operator-a"]

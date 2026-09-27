@@ -92,3 +92,28 @@ async def test_command_matches_normalized_event(app, bot, case, fixture):
         ctx.receive_event(bot, event)
         ctx.should_pass_rule()
     assert calls == ["called"]
+
+
+async def test_quoted_command_matches_after_preprocessing(app, bot, case, monkeypatch):
+    payload = case("events/private")
+    payload["event"]["message"]["quoted_message_id"] = "quoted-message"
+    event = parse_event(payload, app_id="app-a")
+
+    async def defer_dispatch(bot, event):
+        pass
+
+    monkeypatch.setattr(module, "handle_event", defer_dispatch)
+    await bot.handle_event(event)
+    matcher = on_command("echo", rule=to_me(), block=True)
+    calls = []
+
+    @matcher.handle()
+    async def handle():
+        calls.append("called")
+
+    async with app.test_matcher(matcher) as ctx:
+        ctx.receive_event(bot, event)
+        ctx.should_pass_rule()
+    assert calls == ["called"]
+    assert event.quoted_message_id == "quoted-message"
+    assert event.original_message[0].type == "reply"

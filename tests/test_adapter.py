@@ -158,7 +158,7 @@ async def test_reconnect_and_shutdown_during_backoff(setup_adapter, monkeypatch)
     adapter.driver.peers.put_nowait(peer)
     await adapter._startup()
     await peer.wait_sent("register")
-    await adapter._shutdown()
+    await asyncio.wait_for(adapter._shutdown(), 0.5)
     assert len(adapter.driver.connections) == 2
     assert all(t.done() for t in adapter._supervisors)
 
@@ -170,3 +170,14 @@ async def test_shutdown_cancels_stuck_handlers(setup_adapter, monkeypatch):
     await asyncio.wait_for(adapter._shutdown(), 0.5)
     assert calls == [("app-a", "event-a")]
     assert all(not state.tasks for state in adapter._states.values())
+
+
+async def test_malformed_tag_does_not_interrupt_next_callback(setup_adapter, case):
+    _, _, _, peer, calls, _, deliver = setup_adapter
+    payload = case("events/private")
+    payload["event"]["message"]["tag"] = []
+    await deliver(callback_id="malformed", body=payload)
+    await deliver("valid", "valid")
+    assert not peer.closed
+    assert calls == [("app-a", "valid")]
+    assert [f["header"]["callback_id"] for f in peer.sent if f["cmd"] == "ack"] == ["valid"]

@@ -26,7 +26,9 @@ class Bot(BaseBot):
             if identity and event.seatalk_id == identity:
                 return
             message = event.message
-            start = 1 if message and message[0].type == "reply" else 0
+            if message and message[0].type == "reply":
+                del message[0]
+            start = 0
             for segment in message:
                 if (
                     identity

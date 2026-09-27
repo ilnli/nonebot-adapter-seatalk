@@ -1,7 +1,12 @@
 from urllib.parse import urlsplit
 
-from nonebot.compat import field_validator
+from nonebot.compat import PYDANTIC_V2
 from pydantic import BaseModel, Field, SecretStr
+
+if PYDANTIC_V2:
+    from pydantic import field_validator
+else:
+    from pydantic import validator as field_validator
 
 DEFAULT_WS_URL = "wss://ws-openapi.haiserve.com/ws/bot"
 

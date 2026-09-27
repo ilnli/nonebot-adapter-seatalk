@@ -180,8 +180,13 @@ def parse_event(data: dict[str, Any], *, app_id: str, callback_id: str = "") -> 
         )
         if not private and not fields["group_id"]:
             raise InvalidEvent("group message requires group_id")
-        if payload.get("tag") in _MUTATIONS:
-            kind = _MUTATIONS[payload["tag"]]
+        if kind is ThreadMessageEvent and not fields["thread_id"]:
+            raise InvalidEvent("thread message requires thread_id")
+        tag = payload.get("tag")
+        if not isinstance(tag, str) or not tag:
+            raise InvalidEvent("message.tag must be a nonempty string")
+        if tag in _MUTATIONS:
+            kind = _MUTATIONS[tag]
         else:
             message = parse_message(payload, group=not private)
             explicit = name == "new_mentioned_message_received_from_group_chat"
@@ -199,6 +204,8 @@ def parse_event(data: dict[str, Any], *, app_id: str, callback_id: str = "") -> 
             actor = _object(detail.get("inviter", {}), "event.inviter")
         elif name == "bot_removed_from_group_chat":
             actor = _object(detail.get("remover", {}), "event.remover")
+        elif name == "group_chat_converted_to_external_group":
+            actor = _object(detail.get("operator", {}), "event.operator")
         group = detail.get("group", {})
         fields.update(
             employee_code=_identifier(actor.get("employee_code")),

@@ -63,8 +63,14 @@ class Adapter(BaseAdapter):
             connected = False
             try:
                 async with self.websocket(Request("GET", bot.bot_config.ws_url, timeout=15)) as ws:
+                    if self._stopping:
+                        return
                     session = WebSocketSession(ws, bot.bot_config)
                     await session.register()
+                    # Python 3.10 wait_for may finish the handshake concurrently
+                    # with cancellation. Never start receiving after shutdown.
+                    if self._stopping:
+                        return
                     self.bot_connect(bot)
                     connected = True
                     connected_at = monotonic()
