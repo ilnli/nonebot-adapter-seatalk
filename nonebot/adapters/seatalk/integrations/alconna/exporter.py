@@ -13,7 +13,7 @@ from ...bot import Bot, resolve_destination
 from ...event import Event
 from ...exception import InvalidEvent, UnsupportedMessage
 from ...message import Message, MessageSegment
-from ...models import SendResult
+from ...models import Destination, SendResult
 from . import SeaTalkAdapter
 
 
@@ -40,7 +40,7 @@ class SeaTalkMessageExporter(MessageExporter[Message]):
             private=destination.kind == "private",
             adapter="SeaTalk",
             self_id=bot.self_id if bot else None,
-            extra={"thread_id": destination.thread_id},
+            extra={"thread_id": destination.thread_id, "message_id": event.message_id},
         )
 
     async def export(
@@ -69,7 +69,10 @@ class SeaTalkMessageExporter(MessageExporter[Message]):
 
     @export_segment
     async def reply(self, seg: Reply, bot: Bot | None) -> MessageSegment:
-        return MessageSegment.reply(seg.id)
+        reply = MessageSegment.reply(seg.id)
+        if isinstance(seg.origin, SendResult):
+            reply.data["destination"] = seg.origin.destination
+        return reply
 
     async def send_to(
         self, target: Target | Event, bot: Bot, message: Message, **kwargs: Any
@@ -89,10 +92,13 @@ class SeaTalkMessageExporter(MessageExporter[Message]):
         thread = target.extra.get("thread_id")
         if "thread_id" in kwargs:
             raise TypeError("put thread_id in Target.extra")
+        if message_id := target.extra.get("message_id"):
+            destination = Destination("private" if target.private else "group", target.id, thread)
+            return await bot._send_reply(destination, message, message_id, **kwargs)
         send = bot.send_private_message if target.private else bot.send_group_message
         return await send(target.id, message, thread_id=thread, **kwargs)
 
     def get_reply(self, result: SendResult) -> Reply:
         if not result.message_id:
             raise SerializeFailed("SeaTalk did not return a message ID")
-        return Reply(result.message_id)
+        return Reply(result.message_id, origin=result)

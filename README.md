@@ -29,7 +29,7 @@ python examples/bot.py
 
 ```dotenv
 DRIVER=~none+~httpx+~websockets
-SEATALK_BOTS=[{"app_id":"your-app-id","app_secret":"your-app-secret","api_base":"https://matching-api-host.example","bot_seatalk_id":"your-bot-seatalk-id"}]
+SEATALK_BOTS=[{"app_id":"your-app-id","app_secret":"your-app-secret","reply_mode":"thread"}]
 ```
 
 `SEATALK_BOTS` 是应用配置的 JSON 数组，可配置多个机器人：
@@ -39,7 +39,8 @@ SEATALK_BOTS=[{"app_id":"your-app-id","app_secret":"your-app-secret","api_base":
 | `app_id` | 应用 ID，也是 NoneBot 中的机器人 ID；各应用之间不能重复 |
 | `app_secret` | 应用密钥 |
 | `ws_url` | WebSocket 地址，默认使用 SDK 地址 `wss://ws-openapi.haiserve.com/ws/bot` |
-| `api_base` | 必填，应用所在环境对应的 HTTPS REST 地址；公开文档使用 `https://openapi.seatalk.io` |
+| `api_base` | 可选，HTTPS REST 地址，默认 `https://openapi.seatalk.io` |
+| `reply_mode` | 可选，默认 `thread`：群聊消息在以原消息为根的分支中回复；设为 `quote` 则在当前群聊引用回复。原消息已在分支中时，两种模式均在原分支内引用回复 |
 | `bot_seatalk_id` | 可选，机器人账号的 SeaTalk ID，可在 App → Bot → SeaTalk ID 查看；与 `app_id` 不同 |
 
 请确认 REST 与 WebSocket 地址对应同一应用环境。目前尚未验证公开 REST 地址与 SDK 的 haiserve WebSocket 地址能否配套使用；若部署环境提供其他地址，请显式配置。
@@ -60,7 +61,7 @@ SEATALK_BOTS=[{"app_id":"your-app-id","app_secret":"your-app-secret","api_base":
 ```python
 from nonebot.adapters.seatalk import Message, MessageSegment
 
-# 回复当前事件所在的私聊、群聊或话题
+# 按 reply_mode 回复群消息；已有话题内引用回复；私聊保留原会话
 result = await bot.send(event, "你好")
 
 # 显式引用同一群聊或话题内的消息，仅支持群聊
@@ -77,6 +78,8 @@ await bot.send_group_message(
 ```
 
 私聊和群聊均支持话题回复。消息引用仅支持群聊，私聊 API 文档未明确支持引用。被引用的消息、话题根消息须在七天内，引用消息还须属于当前会话流或话题。私聊发送目标必须提供 `employee_code`；事件缺少该字段时会报错，不会改发到其他会话。
+
+`reply_mode` 仅用于事件驱动的群消息回复，原生 `bot.send` 与 Alconna 的事件及事件派生目标行为一致。显式 `quote_id` 或 Reply 消息段优先，保留原会话或话题；`quote_id=None` 可关闭本次自动回复策略。主动调用 `send_group_message`、`send_private_message` 或手动创建 Alconna `Target` 时，仍由调用方指定话题与引用。无原消息 ID 的事件不自动添加话题或引用。
 
 | 内容类型 | 接收 | 发送 |
 | --- | --- | --- |

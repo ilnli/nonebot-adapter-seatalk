@@ -1,3 +1,4 @@
+from typing import Literal
 from urllib.parse import urlsplit
 
 from nonebot.compat import PYDANTIC_V2
@@ -14,9 +15,10 @@ DEFAULT_WS_URL = "wss://ws-openapi.haiserve.com/ws/bot"
 class BotConfig(BaseModel):
     app_id: str = Field(min_length=1)
     app_secret: SecretStr
-    api_base: str
+    api_base: str = "https://openapi.seatalk.io"
     ws_url: str = DEFAULT_WS_URL
     bot_seatalk_id: str | None = None
+    reply_mode: Literal["thread", "quote"] = "thread"
 
     @field_validator("app_id")
     @classmethod

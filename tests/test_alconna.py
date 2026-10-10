@@ -95,6 +95,55 @@ async def test_unimessage_sends_to_target(alc, alc_bot, private, thread):
     )
     assert receipt.get_reply(0).id == "sent-a"
     assert not receipt.recallable and not receipt.editable
+    assert "quoted_message_id" not in body["message"]
+
+
+@pytest.mark.parametrize("mode", ["thread", "quote"])
+@pytest.mark.parametrize("fixture", ["group_mentioned", "thread"])
+@pytest.mark.parametrize("target_kind", ["event", "derived"])
+async def test_event_reply_policy(alc, alc_bot, case, mode, fixture, target_kind, monkeypatch):
+    from nonebot_plugin_alconna.uniseg import get_target
+
+    bot, http = alc_bot
+    bot.bot_config = BotConfig(
+        app_id="app-a", app_secret="secret", api_base="https://api.example", reply_mode=mode
+    )
+    event = parse_event(case(f"events/{fixture}"), app_id="app-a")
+    target = event
+    if target_kind == "derived":
+        target = get_target(event, bot)
+
+        async def recursive_send(*args, **kwargs):
+            raise AssertionError("derived targets must not call Bot.send")
+
+        monkeypatch.setattr(bot, "send", recursive_send)
+    await alc.UniMessage.text("hello").send(target=target, bot=bot)
+    expected = {
+        ("thread", "group_mentioned"): ("msg-group", None),
+        ("quote", "group_mentioned"): (None, "msg-group"),
+        ("thread", "thread"): ("thread-a", "msg-group"),
+        ("quote", "thread"): ("thread-a", "msg-group"),
+    }
+    thread, quote = expected[mode, fixture]
+    body = http.requests[-1].json["message"]
+    assert body.get("thread_id") == thread
+    assert body.get("quoted_message_id") == quote
+
+
+@pytest.mark.parametrize("derived", [False, True])
+async def test_receipt_reply_keeps_new_thread(alc, alc_bot, case, derived):
+    from nonebot_plugin_alconna.uniseg import get_target
+
+    bot, http = alc_bot
+    event = parse_event(case("events/group_mentioned"), app_id="app-a")
+    target = get_target(event, bot) if derived else event
+    receipt = await alc.UniMessage.text("first").send(target=target, bot=bot)
+    http.responses.append(response({"code": 0, "message_id": "sent-b"}))
+    await receipt.reply("second")
+    body = http.requests[-1].json["message"]
+    assert body["thread_id"] == "msg-group"
+    assert body["quoted_message_id"] == "sent-a"
+    assert event.thread_id is None
 
 
 @pytest.mark.parametrize("kind", ["image", "file", "at", "role", "other"])

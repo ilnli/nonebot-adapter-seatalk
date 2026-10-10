@@ -102,7 +102,8 @@ async def test_command_matches_normalized_event(app, bot, case, fixture, monkeyp
         ctx.should_pass_rule()
     assert calls == ["called"]
     assert http.requests[-1].json["message"]["text"]["content"] == "hello"
-    assert http.requests[-1].json["message"].get("thread_id") == event.thread_id
+    expected_thread = {"private": None, "group_mentioned": "msg-group", "thread": "thread-a"}
+    assert http.requests[-1].json["message"].get("thread_id") == expected_thread[fixture]
 
 
 async def test_quoted_command_matches_after_preprocessing(app, bot, case, monkeypatch):
@@ -131,17 +132,25 @@ async def test_quoted_command_matches_after_preprocessing(app, bot, case, monkey
 
 
 @pytest.mark.parametrize(
-    "fixture,kind,identity,thread",
+    "fixture,mode,kind,identity,thread,expected_thread,quote",
     [
-        ("private", "single_chat", "employee-a", None),
-        ("group_mentioned", "group_chat", "group-a", None),
-        ("thread", "group_chat", "group-a", "root-a"),
+        ("private", "thread", "single_chat", "employee-a", None, None, None),
+        ("private", "quote", "single_chat", "employee-a", "root-a", "root-a", None),
+        ("group_mentioned", "thread", "group_chat", "group-a", None, "msg-group", None),
+        ("group_mentioned", "quote", "group_chat", "group-a", None, None, "msg-group"),
+        ("thread", "thread", "group_chat", "group-a", "root-a", "root-a", "msg-group"),
+        ("thread", "quote", "group_chat", "group-a", "root-a", "root-a", "msg-group"),
     ],
 )
-async def test_send_routes_event(bot, case, monkeypatch, fixture, kind, identity, thread):
+async def test_send_routes_event(
+    bot, case, monkeypatch, fixture, mode, kind, identity, thread, expected_thread, quote
+):
     from fakes import FakeHTTP
     from test_api import response
 
+    bot.bot_config = BotConfig(
+        app_id="app-a", app_secret="secret", api_base="https://api.example", reply_mode=mode
+    )
     event = parse_event(case("events/" + fixture), app_id="app-a")
     event.employee_code = "employee-a"
     event.group_id = "group-a" if kind == "group_chat" else None
@@ -152,8 +161,8 @@ async def test_send_routes_event(bot, case, monkeypatch, fixture, kind, identity
     monkeypatch.setattr(bot.adapter, "request", http.request)
     result = await bot.send(event, "hello")
     assert http.requests[-1].url.path == "/messaging/v2/" + kind
-    assert http.requests[-1].json["message"].get("thread_id") == thread
-    assert http.requests[-1].json["message"].get("quoted_message_id") is None
+    assert http.requests[-1].json["message"].get("thread_id") == expected_thread
+    assert http.requests[-1].json["message"].get("quoted_message_id") == quote
     assert identity in http.requests[-1].json.values()
     assert result.message_id == "sent-a"
 
@@ -170,18 +179,24 @@ async def test_missing_destination_and_overrides_do_not_send(bot, case):
         await bot.send(event, "hello", group_id="elsewhere")
 
 
-async def test_quote_opt_in_and_api_dispatch(bot, case, monkeypatch):
+@pytest.mark.parametrize("fixture", ["group_mentioned", "thread"])
+@pytest.mark.parametrize("reference", ["keyword", "segment"])
+async def test_explicit_quote_and_api_dispatch(bot, case, monkeypatch, fixture, reference):
     from fakes import FakeHTTP
     from test_api import response
 
     from nonebot.adapters.seatalk.exception import ApiNotAvailable
 
-    event = parse_event(case("events/thread"), app_id="app-a")
+    event = parse_event(case(f"events/{fixture}"), app_id="app-a")
     http = FakeHTTP(
         response(case("http/token")["response"]), response({"code": 0, "message_id": "sent-a"})
     )
     monkeypatch.setattr(bot.adapter, "request", http.request)
-    await bot.send(event, "hello", quote_id="quote-a")
+    if reference == "keyword":
+        await bot.send(event, "hello", quote_id="quote-a")
+    else:
+        await bot.send(event, MessageSegment.reply("quote-a") + "hello")
     assert http.requests[-1].json["message"]["quoted_message_id"] == "quote-a"
+    assert http.requests[-1].json["message"].get("thread_id") == event.thread_id
     with pytest.raises(ApiNotAvailable):
         await bot.call_api("_access_token")

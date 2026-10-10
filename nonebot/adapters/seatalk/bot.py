@@ -72,11 +72,40 @@ class Bot(BaseBot):
     async def send(
         self, event: Event, message: str | Message | MessageSegment, **kwargs: Any
     ) -> SendResult:
+        return await self._send_reply(
+            resolve_destination(event), message, event.message_id, **kwargs
+        )
+
+    async def _send_reply(
+        self,
+        destination: Destination,
+        message: str | Message | MessageSegment,
+        message_id: str | None,
+        **kwargs: Any,
+    ) -> SendResult:
         if kwargs.keys() - {"quote_id"}:
             raise TypeError(
                 "send accepts only quote_id; use an explicit send method for other targets"
             )
-        destination = resolve_destination(event)
+        message = Message(message)
+        # Alconna receipt replies carry the actual destination of the sent message.
+        # Keep its new thread without mutating the original incoming event/Target.
+        for segment in message:
+            quoted_destination = segment.data.get("destination")
+            if (
+                segment.type == "reply"
+                and isinstance(quoted_destination, Destination)
+                and quoted_destination.kind == destination.kind
+                and quoted_destination.id == destination.id
+                and not destination.thread_id
+            ):
+                destination = quoted_destination
+        explicit_quote = "quote_id" in kwargs or any(seg.type == "reply" for seg in message)
+        if destination.kind == "group" and message_id and not explicit_quote:
+            if destination.thread_id or self.bot_config.reply_mode == "quote":
+                kwargs["quote_id"] = message_id
+            else:
+                destination = Destination("group", destination.id, message_id)
         if destination.kind == "group":
             return await self.send_group_message(
                 destination.id, message, thread_id=destination.thread_id, **kwargs

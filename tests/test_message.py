@@ -70,7 +70,7 @@ def test_config_defaults_and_redacts_secret():
 @pytest.mark.parametrize(
     "data",
     [
-        {"app_id": "a", "app_secret": "secret"},
+        {"app_id": "a", "app_secret": "secret", "reply_mode": "invalid"},
         {"app_id": "", "app_secret": "secret", "api_base": "https://api.example"},
         {"app_id": "a", "app_secret": "", "api_base": "https://api.example"},
         {"app_id": "a", "app_secret": "secret", "api_base": "http://api.example"},

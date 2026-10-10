@@ -25,6 +25,16 @@ def client_for(http):
     )
 
 
+async def test_default_api_base_sends_without_endpoint_configuration(case):
+    http = FakeHTTP(response(case("http/token")["response"]), response({"code": 0}))
+    client = APIClient(
+        BotConfig(app_id="app-a", app_secret="dummy-secret"), http.request, timeout=10
+    )
+    await client.send_message(Destination("private", "employee-a"), Message("hello"))
+    assert str(http.requests[0].url) == "https://openapi.seatalk.io/auth/app_access_token"
+    assert str(http.requests[1].url) == "https://openapi.seatalk.io/messaging/v2/single_chat"
+
+
 @pytest.mark.parametrize(
     "name,destination,quote",
     [

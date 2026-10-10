@@ -25,7 +25,7 @@ Official articles were read using user-authorized documentation access; credenti
 - [SeaTalk IDs](https://open.seatalk.io/docs/SeaTalk-ID): a bot's SeaTalk ID is on the portal's App → Bot page; it is distinct from app_id and employee_code.
 - [WebSocket setup](https://open.seatalk.io/docs/WebSocket-Event-Callback): connect first, then select WebSocket under Event Callback and re-verify while connected.
 
-Public REST examples use `https://openapi.seatalk.io`. Pairing credentials for that origin with the SDK's haiserve socket endpoint remains a deployment verification item; api_base is explicitly configured. No live sends or production redelivery experiments have been performed.
+Public REST examples use `https://openapi.seatalk.io`, now the default `api_base`; deployments can override it. Pairing credentials for that origin with the SDK's haiserve socket endpoint remains a deployment verification item. No live sends or production redelivery experiments have been performed.
 
 Fixtures use invented IDs and dummy secrets. HTTP error fixtures model the documented code envelope; optional headers in tests are synthetic robustness cases, not asserted platform guarantees.
 
