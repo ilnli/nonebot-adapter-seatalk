@@ -62,6 +62,46 @@ async def test_unidentified_mentions_remain_text(bot, case, monkeypatch):
     assert event.is_tome()
 
 
+@pytest.mark.parametrize(
+    "event_type, identity, other, stripped",
+    [
+        ("new_mentioned_message_received_from_group_chat", None, False, True),
+        ("new_message_received_from_group_chat", None, False, False),
+        ("new_mentioned_message_received_from_group_chat", None, True, False),
+        ("new_mentioned_message_received_from_group_chat", "different", False, False),
+        ("new_mentioned_message_received_from_group_chat", "self-a", True, True),
+    ],
+)
+async def test_explicit_single_mention_needs_no_configured_identity(
+    bot, case, monkeypatch, event_type, identity, other, stripped
+):
+    bot.bot_config.bot_seatalk_id = identity
+    payload = case("events/group_mentioned")
+    payload["event_type"] = event_type
+    payload["event"]["message"]["quoted_message_id"] = "quoted-a"
+    payload["event"]["message"]["text"] = {
+        "plain_text": "@Robot /echo user@host" + (" @Other" if other else ""),
+        "mentioned_list": [{"username": "Robot", "seatalk_id": "self-a"}]
+        + ([{"username": "Other", "seatalk_id": "other-a"}] if other else []),
+    }
+    event = parse_event(payload, app_id="app-a")
+    original = event.original_message.copy()
+
+    async def handle(bot, event):
+        pass
+
+    monkeypatch.setattr(module, "handle_event", handle)
+    await bot.handle_event(event)
+    assert (event.message[0].type == "text") is stripped
+    assert event.message.extract_plain_text().startswith("/echo" if stripped else " /echo")
+    assert "user@host" in event.message.extract_plain_text()
+    assert event.original_message == original
+    assert event.quoted_message_id == "quoted-a"
+    assert bot.bot_config.bot_seatalk_id == identity
+    if other:
+        assert event.message[-1].data["user_id"] == "other-a"
+
+
 @pytest.mark.parametrize("identity", ["self-a", None])
 @pytest.mark.parametrize("bot_mentioned", [True, False])
 async def test_multiple_mentions_preserve_other_users_and_body(

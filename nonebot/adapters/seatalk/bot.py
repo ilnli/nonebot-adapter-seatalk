@@ -28,6 +28,18 @@ class Bot(BaseBot):
             message = event.message
             if message and message[0].type == "reply":
                 del message[0]
+            if not identity and event.explicit_mention:
+                # This event guarantees the bot was mentioned. A sole mapped
+                # target therefore identifies it for this event, not globally.
+                targets = {
+                    segment.data["user_id"]
+                    for segment in message
+                    if segment.type == "at"
+                    and segment.data.get("id_type") == "seatalk_id"
+                    and segment.data.get("user_id")
+                }
+                if len(targets) == 1:
+                    identity = targets.pop()
             start = 0
             for segment in message:
                 if (
