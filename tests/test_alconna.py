@@ -209,3 +209,42 @@ async def test_alconna_command_reply(alc, alc_bot, app, case):
         ctx.should_pass_rule()
     assert len(calls) == 1
     assert http.requests[-1].json["message"]["thread_id"] == event.thread_id
+
+
+@pytest.mark.parametrize("identity", ["self-a", None])
+async def test_mention_preprocessing_keeps_alconna_user_content(
+    alc, alc_bot, case, monkeypatch, identity
+):
+    from nonebot.adapters.seatalk import bot as bot_module
+
+    bot, _ = alc_bot
+    bot.bot_config = BotConfig(app_id="app-a", app_secret="secret", bot_seatalk_id=identity)
+    payload = case("events/thread")
+    payload["event"]["message"]["text"] = {
+        "plain_text": "@Bot /echo hello @Other @Second",
+        "mentioned_list": [
+            {"username": "Bot", "seatalk_id": "self-a"},
+            {"username": "Other", "seatalk_id": "other-a"},
+            {"username": "Second", "seatalk_id": "second-a"},
+        ],
+    }
+    event = parse_event(payload, app_id="app-a")
+
+    async def defer_dispatch(bot, event):
+        pass
+
+    monkeypatch.setattr(bot_module, "handle_event", defer_dispatch)
+    await bot.handle_event(event)
+    universal = alc.UniMessage.of(event.message, adapter="SeaTalk")
+    targets = [segment.target for segment in universal if segment.type == "at"]
+    assert targets == (
+        ["seatalk:other-a", "seatalk:second-a"]
+        if identity
+        else [
+            "seatalk:self-a",
+            "seatalk:other-a",
+            "seatalk:second-a",
+        ]
+    )
+    assert universal.extract_plain_text().strip() == "/echo hello"
+    assert "@Bot /echo hello @Other @Second" in event.get_event_description()

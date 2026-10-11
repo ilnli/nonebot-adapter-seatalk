@@ -62,6 +62,41 @@ async def test_unidentified_mentions_remain_text(bot, case, monkeypatch):
     assert event.is_tome()
 
 
+@pytest.mark.parametrize("identity", ["self-a", None])
+@pytest.mark.parametrize("bot_mentioned", [True, False])
+async def test_multiple_mentions_preserve_other_users_and_body(
+    bot, case, monkeypatch, identity, bot_mentioned
+):
+    bot.bot_config = BotConfig(app_id="app-a", app_secret="secret", bot_seatalk_id=identity)
+    payload = case("events/thread")
+    mentions = [
+        {"username": "Other", "seatalk_id": "other-a"},
+        {"username": "Second", "seatalk_id": "second-a"},
+    ]
+    text = "@Other @Second /echo user body"
+    if bot_mentioned:
+        mentions.insert(0, {"username": "Bot", "seatalk_id": "self-a"})
+        text = "@Bot " + text
+    payload["event"]["message"]["text"] = {"plain_text": text, "mentioned_list": mentions}
+    event = parse_event(payload, app_id="app-a")
+
+    async def handle(bot, event):
+        pass
+
+    monkeypatch.setattr(module, "handle_event", handle)
+    await bot.handle_event(event)
+    assert event.is_tome() is bool(identity and bot_mentioned)
+    assert event.message.extract_plain_text().endswith("/echo user body")
+    targets = [segment.data["user_id"] for segment in event.message if segment.type == "at"]
+    assert targets == (
+        ["other-a", "second-a"]
+        if identity and bot_mentioned
+        else [mention["seatalk_id"] for mention in mentions]
+    )
+    assert event.original_message[0].type == "at"
+    assert "@Other @Second /echo user body" in event.get_event_description()
+
+
 async def test_ignore_only_configured_self_sender(bot, case, monkeypatch):
     calls = []
 

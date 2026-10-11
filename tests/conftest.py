@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import pytest
+from nonebot.log import logger
 from nonebug import NONEBOT_INIT_KWARGS
 
 import nonebot.adapters
@@ -25,3 +26,13 @@ def case():
         return json.loads((Path(__file__).parent / "fixtures" / f"{name}.json").read_text())
 
     return load
+
+
+@pytest.fixture
+def seatalk_logs():
+    records = []
+    sink = logger.add(records.append, format="{message}", level="DEBUG", colorize=True)
+    try:
+        yield records
+    finally:
+        logger.remove(sink)

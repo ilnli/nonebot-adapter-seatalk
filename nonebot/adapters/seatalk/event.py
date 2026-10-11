@@ -2,6 +2,8 @@ import json
 from copy import deepcopy
 from typing import Any
 
+from nonebot.utils import escape_tag
+
 from nonebot.adapters import Event as BaseEvent
 
 from .exception import InvalidEvent
@@ -17,6 +19,7 @@ class Event(BaseEvent):
     raw_event: dict[str, Any]
     employee_code: str = ""
     seatalk_id: str = ""
+    username: str = ""
     group_id: str | None = None
     thread_id: str | None = None
     message_id: str | None = None
@@ -65,6 +68,30 @@ class MessageEvent(Event):
 
     def get_message(self) -> Message:
         return self.message
+
+    def get_event_description(self) -> str:
+        context = [
+            f"app={self.app_id}",
+            f"event={self.event_id}",
+            f"sender={self.employee_code}",
+            f"seatalk_id={self.seatalk_id}",
+        ]
+        if self.username:
+            context.append(f"username={self.username}")
+        context.append(f"group={self.group_id}" if self.group_id else "private")
+        if self.thread_id:
+            context.append(f"thread={self.thread_id}")
+        context.append(f"message={self.message_id or ''}")
+        pieces = []
+        for segment in self.original_message:
+            if segment.is_text():
+                pieces.append(segment.data["text"])
+            elif segment.type == "at" and segment.data.get("display"):
+                pieces.append(f"@{segment.data['display']}")
+            else:
+                # Media and opaque segments carry authenticated URLs/payloads.
+                pieces.append(f"[{segment.type}]")
+        return escape_tag(" ".join(context) + ": " + "".join(pieces))
 
 
 class PrivateMessageEvent(MessageEvent):
@@ -220,6 +247,7 @@ def parse_event(data: dict[str, Any], *, app_id: str, callback_id: str = "") -> 
         )
         if kind is InteractiveMessageClickEvent:
             fields["value"] = _identifier(detail.get("value"))
+    fields["username"] = actor.get("username") if isinstance(actor.get("username"), str) else ""
     try:
         return kind(**fields)
     except (ValueError, TypeError) as exc:

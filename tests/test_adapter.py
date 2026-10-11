@@ -181,3 +181,74 @@ async def test_malformed_tag_does_not_interrupt_next_callback(setup_adapter, cas
     assert not peer.closed
     assert calls == [("app-a", "valid")]
     assert [f["header"]["callback_id"] for f in peer.sent if f["cmd"] == "ack"] == ["valid"]
+
+
+async def test_connection_logs_follow_registration_and_shutdown(setup_adapter, seatalk_logs):
+    adapter, bot, _, _, _, _, _ = setup_adapter
+    peer = FakeWebSocket()
+    adapter.driver.peers.put_nowait(peer)
+    task = asyncio.create_task(adapter._supervise(bot))
+    adapter._supervisors.add(task)
+    await peer.wait_sent("register")
+    assert any("connecting" in str(record) for record in seatalk_logs)
+    assert not any("connected" in str(record) for record in seatalk_logs)
+    assert adapter.driver.notifications == []
+    peer.push({"cmd": "register", "header": {"token": "dummy-registration-token"}})
+
+    async def connected():
+        while not adapter.driver.notifications:
+            await asyncio.sleep(0)
+
+    await asyncio.wait_for(connected(), 1)
+    await adapter._shutdown()
+    messages = [record.record["message"] for record in seatalk_logs]
+    assert sum("registered and connected" in message for message in messages) == 1
+    assert sum("disconnected" in message for message in messages) == 1
+    assert not any("reconnect" in message or "failed" in message for message in messages)
+    assert "dummy-registration-token" not in "\n".join(messages)
+    assert adapter.driver.notifications == [("connected", "app-a"), ("disconnected", "app-a")]
+
+
+@pytest.mark.parametrize("terminal", ["reject", "kick"])
+async def test_terminal_logs_do_not_leak_server_payload(setup_adapter, seatalk_logs, terminal):
+    adapter, bot, _, _, _, _, _ = setup_adapter
+    peer = FakeWebSocket()
+    sensitive = "secret ws-token Authorization https://media.example/?token=media-secret"
+    if terminal == "reject":
+        peer.push({"cmd": "register", "code": 1, "message": sensitive})
+    else:
+        peer.push({"cmd": "register", "header": {"token": "ws-token"}})
+        peer.push({"cmd": "kick", "message": sensitive})
+    adapter.driver.peers.put_nowait(peer)
+    await asyncio.wait_for(adapter._supervise(bot), 1)
+    messages = "\n".join(record.record["message"] for record in seatalk_logs)
+    assert ("registration rejected" if terminal == "reject" else "session kicked") in messages
+    assert "secret" not in messages and "ws-token" not in messages
+    assert "Authorization" not in messages and "https://media.example" not in messages
+    assert "reconnect" not in messages
+    assert messages.count("disconnected") == (terminal == "kick")
+    assert len(adapter.driver.connections) == 1
+
+
+async def test_reconnect_logs_each_connection_and_wait(setup_adapter, seatalk_logs, monkeypatch):
+    adapter, bot, _, _, _, _, _ = setup_adapter
+    monkeypatch.setattr(module, "RECONNECT_INITIAL", 0.01)
+    first, second = FakeWebSocket(), FakeWebSocket()
+    for peer in (first, second):
+        peer.push({"cmd": "register", "header": {"token": "ws-token"}})
+        adapter.driver.peers.put_nowait(peer)
+    first.incoming.put_nowait(OSError("secret Authorization bearer ws-token"))
+    second.push({"cmd": "kick", "message": "replaced"})
+    await asyncio.wait_for(adapter._supervise(bot), 1)
+    messages = [record.record["message"] for record in seatalk_logs]
+    assert sum("registered and connected" in message for message in messages) == 2
+    assert sum("disconnected" in message for message in messages) == 2
+    assert any("NetworkError" in message for message in messages)
+    assert any("reconnect in 0.01s" in message for message in messages)
+    assert "secret" not in "\n".join(messages)
+    assert adapter.driver.notifications == [
+        ("connected", "app-a"),
+        ("disconnected", "app-a"),
+        ("connected", "app-a"),
+        ("disconnected", "app-a"),
+    ]

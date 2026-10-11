@@ -66,6 +66,7 @@ class Adapter(BaseAdapter):
             session: WebSocketSession | None = None
             connected = False
             try:
+                log("INFO", f"Bot {escape_tag(bot.self_id)} connecting")
                 async with self.websocket(Request("GET", bot.bot_config.ws_url, timeout=15)) as ws:
                     if self._stopping:
                         return
@@ -78,6 +79,7 @@ class Adapter(BaseAdapter):
                     self.bot_connect(bot)
                     connected = True
                     connected_at = monotonic()
+                    log("SUCCESS", f"Bot {escape_tag(bot.self_id)} registered and connected")
 
                     async def receive(envelope: dict[str, Any]) -> None:
                         assert session is not None
@@ -85,21 +87,31 @@ class Adapter(BaseAdapter):
 
                     await session.run(receive)
             except (RegistrationRejected, SessionKicked) as exc:
-                log("ERROR", f"Bot {escape_tag(bot.self_id)} stopped: {escape_tag(str(exc))}")
+                if not self._stopping:
+                    reason = (
+                        "registration rejected"
+                        if isinstance(exc, RegistrationRejected)
+                        else "session kicked"
+                    )
+                    # Server error text is untrusted and may echo credentials.
+                    log("ERROR", f"Bot {escape_tag(bot.self_id)} stopped: {reason}")
                 return
             except Exception as exc:
-                log(
-                    "WARNING",
-                    f"Bot {escape_tag(bot.self_id)} reconnecting after {type(exc).__name__}",
-                )
+                if not self._stopping:
+                    log(
+                        "WARNING",
+                        f"Bot {escape_tag(bot.self_id)} connection failed: {type(exc).__name__}",
+                    )
             finally:
                 if session is not None:
                     await session.close()
                 if connected:
                     self.bot_disconnect(bot)
+                    log("INFO", f"Bot {escape_tag(bot.self_id)} disconnected")
             if connected_at is not None and monotonic() - connected_at >= RECONNECT_RESET:
                 delay = RECONNECT_INITIAL
             if not self._stopping:
+                log("INFO", f"Bot {escape_tag(bot.self_id)} waiting to reconnect in {delay:g}s")
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, RECONNECT_MAX)
 
