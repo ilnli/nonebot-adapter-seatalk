@@ -29,6 +29,37 @@ Public REST examples use `https://openapi.seatalk.io`, now the default `api_base
 
 Fixtures use invented IDs and dummy secrets. HTTP error fixtures model the documented code envelope; optional headers in tests are synthetic robustness cases, not asserted platform guarantees.
 
+## Outgoing image implementation (2026-10-11)
+
+Authenticated official [group sending](https://open.seatalk.io/docs/Send-Message-to-Group-Chat)
+and [private sending](https://open.seatalk.io/docs/messaging_send-message-to-bot-user_)
+articles were read with user-authorized access on 2026-10-11. Session credentials and
+downloaded article bodies are not distributed.
+
+The implementation uses the documented group/private endpoints and destination metadata,
+with one `message={tag:"image",image:{content:"<base64>"}}` per image. Contiguous text and
+individual images are sent sequentially because a request contains one typed message.
+Results retain the actual message IDs returned by each request. No live image send has
+been performed. The official
+[SeaTalk cs-bot SDK](https://github.com/seatalk-io/cs-bot/blob/main/cs_bot/libs/seatalk_openapi/client.py)
+also confirms the image body for private sending (`__assemble_chat_message` and
+`send_single_chat_message`). Both official article tables allow PNG/JPG/GIF and specify
+a maximum of 5 MB after base64 encoding. The adapter conservatively interprets this as
+5,000,000 encoded bytes inclusive, since the article does not define decimal/binary MB.
+
+Group image tables explicitly support `message.thread_id` and `message.quoted_message_id`;
+group responses expose `message_id`. Private image examples have no guaranteed message ID.
+Private `thread_id` is documented in the text section, not repeated in the image table;
+the adapter preserves an explicitly supplied private thread, with actual server support
+for that image combination still pending live verification. Mocked requests prove
+implementation behavior and contract serialization, not successful live delivery.
+
+Public HTTP(S) image downloads never use the bot's token. Received media is marked as
+authenticated and round-tripping it through Alconna preserves that marker. Forwarding
+those URLs is explicitly rejected: NoneBot's HTTP request interface does not expose
+redirect controls and cannot safely carry application credentials for that operation.
+Callers can send already-authorized image bytes instead.
+
 ## Automated verification
 
 Installed-wheel checks completed on 2026-09-27: 98 tests passed on Python3.10/NoneBot2.4/Pydantic1 and Python3.14/NoneBot2.5/Pydantic2 (Alconna absent). The optional Python3.12/NoneBot2.5/Alconna0.62.1 lane passed all117 tests. The Python3.14 test runner emitted five pytest-asyncio deprecation warnings. Lint, formatting and wheel/sdist builds passed. No live SeaTalk send or reconnect was exercised.

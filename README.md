@@ -1,6 +1,6 @@
 # NoneBot2 SeaTalk 适配器
 
-面向 SeaTalk 应用机器人的 NoneBot2 适配器，支持通过 WebSocket 接收事件、通过 HTTP 发送文本回复，并可选集成 Alconna。
+面向 SeaTalk 应用机器人的 NoneBot2 适配器，支持通过 WebSocket 接收事件、通过 HTTP 发送文本和图片回复，并可选集成 Alconna。
 
 本项目由 **GPT-6-Astra** 编写，采用 [MIT 许可证](LICENSE)。
 
@@ -76,6 +76,11 @@ await bot.send(event, "收到", quote_id=event.message_id)
 await bot.send_private_message("employee-code", "你好")
 await bot.send_group_message("group-id", "你好", thread_id="root-message-id")
 
+# 支持图片字节、本地路径、file URI、base64:// 和公开 HTTP(S) 图片 URL
+await bot.send(event, MessageSegment.image(image_bytes))
+# 自动按顺序拆成文字、图片、文字三个请求
+await bot.send(event, Message("说明") + MessageSegment.image(image_bytes) + "结束")
+
 # 群聊 @ 使用数字形式的 SeaTalk ID，不能使用 employee_code
 await bot.send_group_message(
     "group-id", Message("你好 ") + MessageSegment.at("12345", id_type="seatalk_id")
@@ -91,7 +96,8 @@ await bot.send_group_message(
 | 文本 | 转换为原生文本消息段 | 单条正文 1–4096 个字符，默认使用纯文本格式 |
 | @ 提及 | 根据唯一且不重叠的 `@用户名` 映射转换；歧义内容保留为文本 | 在群聊中 @ 指定数字 SeaTalk ID 的用户 |
 | 引用回复 | 保留原生引用消息段及事件元数据 | 最多引用一条群聊消息 |
-| 图片、文件、视频 | 保留类型及需要鉴权的媒体 URL | 暂不支持 |
+| 图片 | 保留类型及需要鉴权的媒体 URL | 图片字节、本地文件、base64、公开 HTTP(S) URL；自动拆分图文 |
+| 文件、视频 | 保留类型及需要鉴权的媒体 URL | 暂不支持 |
 | 卡片、合并转发、未知类型 | 保留原始载荷 | 暂不支持 |
 
 官方文档未明确提及位置偏移量的单位，因此适配器仅使用无歧义的用户名文本映射，不猜测偏移量。命令预处理会移除开头可识别的机器人 @ 或昵称，并通过 `original_message` 保留原始消息。
@@ -100,7 +106,11 @@ await bot.send_group_message(
 
 媒体 URL 需要鉴权，七天后过期；适配器不会自动下载。消息编辑、撤回、成员变更和交互卡片点击作为通知事件处理，不会重新触发普通消息命令。
 
-包含不支持内容或混合媒体的发送请求会在任何 HTTP 请求之前抛出 `UnsupportedMessage`。适配器不会自动拆分消息或重试发送。`SendResult.message_id` 可能为 `None`，尤其是私聊文本消息；不会生成虚假的消息 ID。
+按官方应用消息 API 文档，图片支持 PNG、JPEG、GIF，base64 编码后的正文最多 5 MB；适配器保守按 5,000,000 字节检查，不会自动转码或压缩。群聊图片的话题和引用有明确文档支持；私聊图片会保留调用方传入的话题参数，但该组合仍需真实环境验证。公开图片 URL 下载不携带应用令牌；收到的鉴权媒体 URL 不会自动转发，需由调用方提供图片字节。
+
+图文混合消息自动按顺序拆分，每张图片一个请求，连续文字和提及保留为一个文本请求；每段保留同一个会话、话题和引用。单请求返回 `SendResult`，多请求返回实际回执的 `list[SendResult]`，Alconna 同样保留每段回执。不会生成虚假的消息 ID，服务端未提供时 `message_id` 为 `None`。
+
+发送前会检查全部内容并准备图片；不支持的类型或无效图片会抛出 `UnsupportedMessage`。下载失败抛出 `NetworkError`。某段发送失败时立即停止并报告错误，已发出的前面片段不会撤回，也不会自动重试，避免重复发送。
 
 令牌被拒绝后，缓存会失效，下一次调用重新获取令牌，但不会重放本次失败的发送。`ActionFailed` 提供错误码、API 路径，以及服务端返回时的请求 ID、`Retry-After`。常见错误码：
 
@@ -149,7 +159,7 @@ await UniMessage.text("你好").send(
 )
 ```
 
-接收的文本、用户提及、引用和媒体会转换为通用消息段；无法进一步解析的内容保留为 `Other`。发送支持文本、`At("user", "seatalk:12345")` 和群聊 `Reply`。文本样式按纯文本发送。
+接收的文本、用户提及、引用和媒体会转换为通用消息段；无法进一步解析的内容保留为 `Other`。发送支持文本、`Image(raw=...)` / `Image(path=...)` / `Image(url=...)`、`At("user", "seatalk:12345")` 和群聊 `Reply`。文本样式按纯文本发送。
 
 `employee_code` 无法直接用于发送 @，因此 `at_sender=True` 在部分事件中不可用。即使启用了 fallback，不支持的媒体或提及仍会抛出适配器的 `UnsupportedMessage`，不会静默转换成文本。发送回执缺少消息 ID 时，尝试从回执获取引用会抛出 `SerializeFailed`。
 

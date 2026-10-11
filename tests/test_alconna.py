@@ -146,13 +146,13 @@ async def test_receipt_reply_keeps_new_thread(alc, alc_bot, case, derived):
     assert event.thread_id is None
 
 
-@pytest.mark.parametrize("kind", ["image", "file", "at", "role", "other"])
+@pytest.mark.parametrize("kind", ["video", "file", "at", "role", "other"])
 async def test_unsupported_fails_even_with_fallback(alc, alc_bot, kind):
-    from nonebot_plugin_alconna.uniseg import At, File, Image, Other
+    from nonebot_plugin_alconna.uniseg import At, File, Other, Video
 
     bot, http = alc_bot
     segments = {
-        "image": Image(url="https://media.example/a"),
+        "video": Video(url="https://media.example/a"),
         "file": File(url="https://media.example/a"),
         "at": At("user", "employee-a"),
         "role": At("role", "seatalk:123"),

@@ -6,7 +6,7 @@ from nonebot_plugin_alconna.uniseg.constraint import SerializeFailed
 from nonebot_plugin_alconna.uniseg.exporter import MessageExporter
 from nonebot_plugin_alconna.uniseg.exporter import export as export_segment
 from nonebot_plugin_alconna.uniseg.fallback import FallbackStrategy
-from nonebot_plugin_alconna.uniseg.segment import At, Reply, Segment, Text
+from nonebot_plugin_alconna.uniseg.segment import At, Image, Reply, Segment, Text
 from nonebot_plugin_alconna.uniseg.target import Target
 
 from ...bot import Bot, resolve_destination
@@ -49,8 +49,8 @@ class SeaTalkMessageExporter(MessageExporter[Message]):
         # UniMessage.export catches SerializeFailed and stringifies the entire
         # message with fallback enabled. Native UnsupportedMessage must escape it.
         for segment in source:
-            if type(segment) not in {Text, At, Reply} or segment.children:
-                raise UnsupportedMessage(f"cannot export universal {segment.type} to SeaTalk text")
+            if type(segment) not in {Text, At, Reply, Image} or segment.children:
+                raise UnsupportedMessage(f"cannot export universal {segment.type} to SeaTalk")
             if isinstance(segment, At) and (
                 segment.flag != "user"
                 or not re.fullmatch(r"seatalk:[0-9]+", segment.target)
@@ -62,6 +62,21 @@ class SeaTalkMessageExporter(MessageExporter[Message]):
     @export_segment
     async def text(self, seg: Text, bot: Bot | None) -> MessageSegment:
         return MessageSegment.text(seg.text)
+
+    @export_segment
+    async def image(self, seg: Image, bot: Bot | None) -> MessageSegment:
+        if seg.raw is not None:
+            return MessageSegment.image(seg.raw_bytes)
+        if seg.path is not None:
+            from pathlib import Path
+
+            return MessageSegment.image(Path(seg.path))
+        if seg.url:
+            native = MessageSegment.image(seg.url)
+            if isinstance(seg.origin, MessageSegment) and seg.origin.data.get("requires_auth"):
+                native.data["requires_auth"] = True
+            return native
+        raise UnsupportedMessage("SeaTalk images require bytes, a local path or a URL")
 
     @export_segment
     async def at(self, seg: At, bot: Bot | None) -> MessageSegment:
@@ -76,7 +91,7 @@ class SeaTalkMessageExporter(MessageExporter[Message]):
 
     async def send_to(
         self, target: Target | Event, bot: Bot, message: Message, **kwargs: Any
-    ) -> SendResult:
+    ) -> SendResult | list[SendResult]:
         if not isinstance(message, Message):
             raise UnsupportedMessage("SeaTalk requires a native message, not a fallback message")
         if isinstance(target, Event):

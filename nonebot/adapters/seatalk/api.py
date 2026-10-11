@@ -9,7 +9,7 @@ from nonebot.drivers import Request, Response
 
 from .config import BotConfig
 from .exception import ActionFailed, NetworkError
-from .message import Message, serialize_message
+from .message import Message, serialize_message, split_message
 from .models import Destination, SendResult
 
 
@@ -138,11 +138,30 @@ class APIClient:
 
     async def send_message(
         self, destination: Destination, message: Message, *, quote_id: str | None = None
-    ) -> SendResult:
-        body = serialize_message(message, destination, quote_id=quote_id)
+    ) -> SendResult | list[SendResult]:
+        from .media import encode_image
+
+        chunks = split_message(message.copy())
+        # Validate the entire message before a send can partially succeed.
+        for chunk in chunks:
+            for segment in chunk:
+                if segment.type == "image":
+                    segment.data["base64"] = ""
+        bodies = [serialize_message(chunk, destination, quote_id=quote_id) for chunk in chunks]
+        for chunk, body in zip(chunks, bodies):
+            for segment in chunk:
+                if segment.type == "image":
+                    body["message"]["image"]["content"] = await encode_image(
+                        segment, self._request, self.timeout
+                    )
         path = "/messaging/v2/" + ("group_chat" if destination.kind == "group" else "single_chat")
-        response = await self.request_api("POST", path, json=body)
-        identity = response.get("message_id")
-        if identity is not None and not isinstance(identity, str):
-            raise NetworkError("SeaTalk returned an invalid message ID")
-        return SendResult(identity or None, destination, destination.thread_id, response)
+        results = []
+        for body in bodies:
+            response = await self.request_api("POST", path, json=body)
+            identity = response.get("message_id")
+            if identity is not None and not isinstance(identity, str):
+                raise NetworkError("SeaTalk returned an invalid message ID")
+            results.append(
+                SendResult(identity or None, destination, destination.thread_id, response)
+            )
+        return results[0] if len(results) == 1 else results

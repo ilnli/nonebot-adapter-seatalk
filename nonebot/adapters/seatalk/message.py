@@ -1,6 +1,7 @@
 import re
 from collections.abc import Iterable
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Literal
 
 from nonebot.adapters import Message as BaseMessage
@@ -39,7 +40,8 @@ class MessageSegment(BaseMessageSegment["Message"]):
         return MessageSegment("reply", {"message_id": message_id})
 
     @staticmethod
-    def image(url: str) -> "MessageSegment":
+    def image(url: str | bytes | Path) -> "MessageSegment":
+        """Send image bytes, a path, base64:// data, a file URI or a public HTTP URL."""
         return MessageSegment("image", {"url": url})
 
     @staticmethod
@@ -108,6 +110,7 @@ def parse_message(payload: dict[str, Any], *, group: bool) -> Message:
         segment = MessageSegment(kind, {"payload": deepcopy(body)})
         if tag in {"image", "file", "video"}:
             segment.data.update(content=body.get("content", ""), name=body.get("filename"))
+            segment.data["requires_auth"] = True
     else:
         segment = MessageSegment.raw(tag, payload)
     message.append(segment)
@@ -147,6 +150,26 @@ def _mapped_mentions(text: str, mentions: Any) -> Message | None:
     return result
 
 
+def split_message(message: Message) -> list[Message]:
+    """SeaTalk accepts one typed body per request; keep contiguous text together."""
+    replies = [segment for segment in message if segment.type == "reply"]
+    chunks: list[Message] = []
+    text = Message()
+    for segment in message:
+        if segment.type == "reply" or (segment.is_text() and not segment.data["text"]):
+            continue
+        if segment.type == "image":
+            if text:
+                chunks.append(Message(replies) + text)
+                text = Message()
+            chunks.append(Message(replies) + segment)
+        else:
+            text.append(segment)
+    if text:
+        chunks.append(Message(replies) + text)
+    return chunks or [Message(replies)]
+
+
 def serialize_message(
     message: Message, destination: "Destination", *, quote_id: str | None = None
 ) -> dict[str, Any]:
@@ -160,6 +183,19 @@ def serialize_message(
     quote_id = quote_id if quote_id is not None else (quotes[0] if quotes else None)
     if quote_id is not None and (not quote_id or destination.kind != "group"):
         raise UnsupportedMessage("quoting is supported only for group messages")
+    images = [segment for segment in message if segment.type == "image"]
+    if images:
+        if len(images) != 1 or any(seg.type not in {"image", "reply"} for seg in message):
+            raise UnsupportedMessage("each request requires one image or a text body")
+        body = {"tag": "image", "image": {"content": images[0].data["base64"]}}
+        if destination.thread_id:
+            body["thread_id"] = destination.thread_id
+        if quote_id:
+            body["quoted_message_id"] = quote_id
+        return {
+            "group_id" if destination.kind == "group" else "employee_code": destination.id,
+            "message": body,
+        }
     formatted = any(segment.type == "at" for segment in message)
     pieces = []
     for segment in message:

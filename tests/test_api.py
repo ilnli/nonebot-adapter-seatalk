@@ -63,7 +63,7 @@ async def test_verified_requests(case, name, destination, quote):
     "message,destination,quote",
     [
         (
-            Message("hello") + MessageSegment.image("https://media.example/x"),
+            Message("hello") + MessageSegment.file("https://media.example/x"),
             Destination("group", "g"),
             None,
         ),

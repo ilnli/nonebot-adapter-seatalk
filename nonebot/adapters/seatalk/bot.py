@@ -83,7 +83,7 @@ class Bot(BaseBot):
 
     async def send(
         self, event: Event, message: str | Message | MessageSegment, **kwargs: Any
-    ) -> SendResult:
+    ) -> SendResult | list[SendResult]:
         return await self._send_reply(
             resolve_destination(event), message, event.message_id, **kwargs
         )
@@ -94,7 +94,7 @@ class Bot(BaseBot):
         message: str | Message | MessageSegment,
         message_id: str | None,
         **kwargs: Any,
-    ) -> SendResult:
+    ) -> SendResult | list[SendResult]:
         if kwargs.keys() - {"quote_id"}:
             raise TypeError(
                 "send accepts only quote_id; use an explicit send method for other targets"
@@ -133,7 +133,7 @@ class Bot(BaseBot):
         *,
         thread_id: str | None = None,
         quote_id: str | None = None,
-    ) -> SendResult:
+    ) -> SendResult | list[SendResult]:
         return await self.call_api(
             "send_private_message",
             employee_code=employee_code,
@@ -149,7 +149,7 @@ class Bot(BaseBot):
         *,
         thread_id: str | None = None,
         quote_id: str | None = None,
-    ) -> SendResult:
+    ) -> SendResult | list[SendResult]:
         return await self.call_api(
             "send_group_message",
             group_id=group_id,
